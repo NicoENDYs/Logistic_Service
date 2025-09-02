@@ -22,3 +22,7 @@ o
 php artisan breeze:install blade
 ```
 
+
+```bash
+php artisan key:generate (copiar key en .env en APP KEY)
+```
