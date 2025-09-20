@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -76,9 +77,91 @@ class Vehicle extends Model
         ];
     }
 
+    // Relación con viajes
+    public function trips(): HasMany
+    {
+        return $this->hasMany(Trip::class);
+    }
+
     // Verificar si el vehículo está activo
     public function isActive(): bool
     {
         return $this->status === self::STATUS_ACTIVE;
+    }
+
+    // Verificar si el vehículo está disponible para viajes
+    public function isAvailable(): bool
+    {
+        return $this->isActive() && !$this->hasActiveTrips();
+    }
+
+    // Verificar si tiene viajes activos
+    public function hasActiveTrips(): bool
+    {
+        return $this->trips()->whereIn('status', ['pendiente', 'en_progreso'])->exists();
+    }
+
+    // Obtener vehículos activos
+    public static function active()
+    {
+        return static::where('status', self::STATUS_ACTIVE);
+    }
+
+    // Obtener vehículos disponibles
+    public static function available()
+    {
+        return static::active()->whereDoesntHave('trips', function($query) {
+            $query->whereIn('status', ['pendiente', 'en_progreso']);
+        });
+    }
+
+    // Obtener vehículos por estado
+    public static function byStatus(string $status)
+    {
+        return static::where('status', $status);
+    }
+
+    // Cambiar estado del vehículo
+    public function changeStatus(string $newStatus): bool
+    {
+        if (!in_array($newStatus, [self::STATUS_ACTIVE, self::STATUS_INACTIVE, self::STATUS_MAINTENANCE])) {
+            return false;
+        }
+        
+        return $this->update(['status' => $newStatus]);
+    }
+
+    // Alternar estado entre activo/inactivo
+    public function toggleStatus(): string
+    {
+        $newStatus = match($this->status) {
+            self::STATUS_ACTIVE => self::STATUS_INACTIVE,
+            self::STATUS_INACTIVE => self::STATUS_ACTIVE,
+            self::STATUS_MAINTENANCE => self::STATUS_ACTIVE,
+            default => self::STATUS_ACTIVE
+        };
+        
+        $this->update(['status' => $newStatus]);
+        return $newStatus;
+    }
+
+    // Obtener información resumida del vehículo
+    public function getSummaryInfo(): array
+    {
+        return [
+            'id' => $this->id,
+            'plate_number' => $this->plate_number,
+            'brand' => $this->brand,
+            'model' => $this->model,
+            'capacity' => $this->capacity,
+            'status' => $this->status,
+            'is_available' => $this->isAvailable(),
+        ];
+    }
+
+    // Obtener nombre completo del vehículo
+    public function getFullNameAttribute(): string
+    {
+        return "{$this->brand} {$this->model} ({$this->plate_number})";
     }
 }

@@ -26,11 +26,12 @@ class tripsController extends Controller
     //mostrar formulario de creación de viaje
     public function create(): View
     {
-        $vehicles = Vehicle::where('status', 'activo')->orderBy('plate_number')->get();
-        $drivers = Driver::with('user')->where('status', 'activo')->orderBy('created_at')->get();
+        $vehicles = Vehicle::active()->orderBy('plate_number')->get();
+        $drivers = Driver::active()->with('user')->orderBy('created_at')->get();
         $routes = Route::orderBy('origin')->get();
+        $statuses = Trip::getStatuses();
         
-        return view('trips.create', compact('vehicles', 'drivers', 'routes'));
+        return view('trips.create', compact('vehicles', 'drivers', 'routes', 'statuses'));
     }
 
     //agregar un nuevo viaje / insertar
@@ -96,8 +97,9 @@ class tripsController extends Controller
             ->get();
             
         $routes = Route::orderBy('origin')->get();
+        $statuses = Trip::getStatuses();
         
-        return view('trips.edit', compact('trip', 'vehicles', 'drivers', 'routes'));
+        return view('trips.edit', compact('trip', 'vehicles', 'drivers', 'routes', 'statuses'));
     }
 
     //Actualizar / editar viaje
@@ -122,7 +124,7 @@ class tripsController extends Controller
     public function destroy(Trip $trip): RedirectResponse
     {
         // Solo permitir eliminar viajes pendientes o cancelados
-        if (in_array($trip->status, ['en_progreso', 'completado'])) {
+        if (!$trip->canBeDeleted()) {
             return redirect()->route('trips.index')
                 ->with('error', 'No se puede eliminar un viaje en progreso o completado.');
         }
@@ -140,74 +142,84 @@ class tripsController extends Controller
             'status' => ['required', 'string', Rule::in(['pendiente', 'en_progreso', 'completado', 'cancelado'])],
         ]);
 
-        // Lógica para actualizar timestamps según el estado
-        $updateData = ['status' => $validated['status']];
-        
-        if ($validated['status'] === 'en_progreso' && !$trip->start_time) {
-            $updateData['start_time'] = now();
-        } elseif ($validated['status'] === 'completado' && !$trip->end_time) {
-            $updateData['end_time'] = now();
+        if ($trip->changeStatus($validated['status'])) {
+            return redirect()->route('trips.index')
+                ->with('success', "Estado del viaje cambiado a: {$validated['status']}");
         }
-
-        $trip->update($updateData);
-
-        return redirect()->route('trips.index')
-            ->with('success', "Estado del viaje cambiado a: {$validated['status']}");
-    }
-
-    // obtener viajes por estado via api
-    public function getByStatus(string $status)
-    {
-        $trips = Trip::with(['vehicle', 'driver.user', 'route'])
-            ->where('status', $status)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($trip) {
-                return [
-                    'id' => $trip->id,
-                    'vehicle' => $trip->vehicle->plate_number ?? 'N/A',
-                    'driver' => $trip->driver->user->name ?? 'N/A',
-                    'route' => $trip->route->description ?? 'N/A',
-                    'status' => $trip->status,
-                    'start_time' => $trip->start_time,
-                    'end_time' => $trip->end_time,
-                ];
-            });
-
-        return response()->json($trips);
+        
+        return redirect()->back()
+            ->with('error', 'No se pudo cambiar el estado del viaje.');
     }
 
     // iniciar viaje
     public function startTrip(Trip $trip): RedirectResponse
     {
-        if ($trip->status !== 'pendiente') {
-            return redirect()->route('trips.index')
-                ->with('error', 'Solo se pueden iniciar viajes pendientes.');
+        if ($trip->start()) {
+            return redirect()->route('trips.show', $trip)
+                ->with('success', 'Viaje iniciado exitosamente.');
         }
-
-        $trip->update([
-            'status' => 'en_progreso',
-            'start_time' => now(),
-        ]);
-
-        return redirect()->route('trips.show', $trip)
-            ->with('success', 'Viaje iniciado exitosamente.');
+        
+        return redirect()->route('trips.index')
+            ->with('error', 'Solo se pueden iniciar viajes pendientes.');
     }
 
     // finalizar viaje
     public function completeTrip(Trip $trip): RedirectResponse
     {
-        if ($trip->status !== 'en_progreso') {
-            return redirect()->route('trips.index')
-                ->with('error', 'Solo se pueden completar viajes en progreso.');
+        if ($trip->complete()) {
+            return redirect()->route('trips.show', $trip)
+                ->with('success', 'Viaje completado exitosamente.');
         }
+        
+        return redirect()->route('trips.index')
+            ->with('error', 'Solo se pueden completar viajes en progreso.');
+    }
 
-        $trip->update([
-            'status' => 'completado',
-            'end_time' => now(),
-        ]);
+    // Obtener viajes activos para dashboard
+    public function getActive()
+    {
+        $trips = Trip::active()
+            ->withAllRelations()
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function($trip) {
+                return $trip->getSummaryInfo();
+            });
 
-        return redirect()->route('trips.show', $trip)
-            ->with('success', 'Viaje completado exitosamente.');
+        return response()->json($trips);
+    }
+
+    // Buscar viajes por vehículo o conductor
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        
+        $trips = Trip::with(['vehicle', 'driver.user', 'route'])
+            ->whereHas('vehicle', function($q) use ($query) {
+                $q->where('plate_number', 'like', "%{$query}%");
+            })
+            ->orWhereHas('driver.user', function($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%");
+            })
+            ->orderBy('created_at', 'desc')
+            ->take(10)
+            ->get()
+            ->map(function($trip) {
+                return $trip->getSummaryInfo();
+            });
+
+        return response()->json($trips);
+    }
+
+    // Cancelar viaje
+    public function cancelTrip(Trip $trip): RedirectResponse
+    {
+        if ($trip->cancel()) {
+            return redirect()->route('trips.show', $trip)
+                ->with('success', 'Viaje cancelado exitosamente.');
+        }
+        
+        return redirect()->route('trips.index')
+            ->with('error', 'No se pudo cancelar el viaje.');
     }
 }

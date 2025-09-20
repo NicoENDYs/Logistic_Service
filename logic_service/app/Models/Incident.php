@@ -60,4 +60,90 @@ class Incident extends Model
     {
         $this->update(['resolved' => true]);
     }
+
+    // Marcar como no resuelto
+    public function markAsUnresolved(): void
+    {
+        $this->update(['resolved' => false]);
+    }
+
+    // Alternar estado de resolución
+    public function toggleResolved(): bool
+    {
+        $newStatus = !$this->resolved;
+        $this->update(['resolved' => $newStatus]);
+        return $newStatus;
+    }
+
+    // Obtener incidentes por estado de resolución
+    public static function byResolved(bool $resolved = true)
+    {
+        return static::where('resolved', $resolved);
+    }
+
+    // Obtener incidentes pendientes
+    public static function pending()
+    {
+        return static::where('resolved', false);
+    }
+
+    // Obtener incidentes resueltos
+    public static function resolved()
+    {
+        return static::where('resolved', true);
+    }
+
+    // Obtener incidentes por tipo
+    public static function byType(string $type)
+    {
+        return static::where('type', $type);
+    }
+
+    // Obtener incidentes de un viaje
+    public static function forTrip(int $tripId)
+    {
+        return static::where('trip_id', $tripId);
+    }
+
+    // Obtener incidentes con relaciones
+    public static function withRelations()
+    {
+        return static::with(['trip.vehicle', 'trip.driver.user', 'trip.route']);
+    }
+
+    // Obtener información resumida del incidente
+    public function getSummaryInfo(): array
+    {
+        return [
+            'id' => $this->id,
+            'description' => substr($this->description, 0, 100) . (strlen($this->description) > 100 ? '...' : ''),
+            'type' => $this->type,
+            'vehicle' => $this->trip->vehicle->plate_number ?? 'N/A',
+            'driver' => $this->trip->driver->user->name ?? 'N/A',
+            'reported_at' => $this->reported_at,
+            'resolved' => $this->resolved,
+        ];
+    }
+
+    // Obtener resumen estadístico de incidentes
+    public static function getStatsSummary(): array
+    {
+        return [
+            'total' => static::count(),
+            'resolved' => static::where('resolved', true)->count(),
+            'pending' => static::where('resolved', false)->count(),
+            'by_type' => [
+                self::TYPE_ACCIDENT => static::where('type', self::TYPE_ACCIDENT)->count(),
+                self::TYPE_DELAY => static::where('type', self::TYPE_DELAY)->count(),
+                self::TYPE_MECHANICAL => static::where('type', self::TYPE_MECHANICAL)->count(),
+                self::TYPE_OTHER => static::where('type', self::TYPE_OTHER)->count(),
+            ]
+        ];
+    }
+
+    // Scope para incidentes recientes
+    public function scopeRecent($query, int $days = 30)
+    {
+        return $query->where('reported_at', '>=', now()->subDays($days));
+    }
 }

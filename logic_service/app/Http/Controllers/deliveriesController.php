@@ -29,7 +29,9 @@ class deliveriesController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
-        return view('deliveries.create', compact('trips'));
+        $statuses = Delivery::getStatuses();
+        
+        return view('deliveries.create', compact('trips', 'statuses'));
     }
 
     //agregar una nueva entrega / insertar
@@ -70,7 +72,9 @@ class deliveriesController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
             
-        return view('deliveries.edit', compact('delivery', 'trips'));
+        $statuses = Delivery::getStatuses();
+            
+        return view('deliveries.edit', compact('delivery', 'trips', 'statuses'));
     }
 
     //Actualizar / editar entrega
@@ -84,13 +88,9 @@ class deliveriesController extends Controller
             'status' => ['required', 'string', Rule::in(['pendiente', 'entregado', 'fallido'])],
         ]);
 
-        // Si se marca como entregado y no tiene fecha, asignar la actual
-        if ($validated['status'] === 'entregado' && !$validated['delivery_time']) {
-            $validated['delivery_time'] = now();
-        }
-
-        $delivery->update($validated);
-
+        $delivery->changeStatus($validated['status']);
+        $delivery->update(collect($validated)->except('status')->toArray());
+        
         return redirect()->route('deliveries.index')
             ->with('success', 'Entrega actualizada exitosamente.');
     }
@@ -99,7 +99,7 @@ class deliveriesController extends Controller
     public function destroy(Delivery $delivery): RedirectResponse
     {
         // Solo permitir eliminar entregas pendientes
-        if ($delivery->status === 'entregado') {
+        if (!$delivery->canBeDeleted()) {
             return redirect()->route('deliveries.index')
                 ->with('error', 'No se puede eliminar una entrega ya completada.');
         }
@@ -117,79 +117,82 @@ class deliveriesController extends Controller
             'status' => ['required', 'string', Rule::in(['pendiente', 'entregado', 'fallido'])],
         ]);
 
-        $updateData = ['status' => $validated['status']];
-        
-        // Si se marca como entregado, registrar la fecha
-        if ($validated['status'] === 'entregado' && !$delivery->delivery_time) {
-            $updateData['delivery_time'] = now();
+        if ($delivery->changeStatus($validated['status'])) {
+            return redirect()->route('deliveries.index')
+                ->with('success', "Estado de la entrega cambiado a: {$validated['status']}");
         }
-
-        $delivery->update($updateData);
-
-        return redirect()->route('deliveries.index')
-            ->with('success', "Estado de la entrega cambiado a: {$validated['status']}");
-    }
-
-    // obtener entregas por estado via api
-    public function getByStatus(string $status)
-    {
-        $deliveries = Delivery::with(['trip.vehicle', 'trip.driver.user'])
-            ->where('status', $status)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($delivery) {
-                return [
-                    'id' => $delivery->id,
-                    'customer_name' => $delivery->customer_name,
-                    'delivery_address' => $delivery->delivery_address,
-                    'vehicle' => $delivery->trip->vehicle->plate_number ?? 'N/A',
-                    'driver' => $delivery->trip->driver->user->name ?? 'N/A',
-                    'status' => $delivery->status,
-                    'delivery_time' => $delivery->delivery_time,
-                ];
-            });
-
-        return response()->json($deliveries);
-    }
-
-    // obtener entregas de un viaje especifica
-    public function getByTrip(Trip $trip)
-    {
-        $deliveries = $trip->deliveries()
-            ->orderBy('created_at')
-            ->get(['id', 'customer_name', 'delivery_address', 'status', 'delivery_time']);
-
-        return response()->json($deliveries);
+        
+        return redirect()->back()
+            ->with('error', 'No se pudo cambiar el estado de la entrega.');
     }
 
     // marcar entrega como completada
     public function markAsDelivered(Delivery $delivery): RedirectResponse
     {
-        if ($delivery->status === 'entregado') {
-            return redirect()->route('deliveries.index')
-                ->with('error', 'La entrega ya está marcada como entregada.');
+        if ($delivery->markAsDelivered()) {
+            return redirect()->route('deliveries.show', $delivery)
+                ->with('success', 'Entrega marcada como completada exitosamente.');
         }
-
-        $delivery->update([
-            'status' => 'entregado',
-            'delivery_time' => now(),
-        ]);
-
-        return redirect()->route('deliveries.show', $delivery)
-            ->with('success', 'Entrega marcada como completada exitosamente.');
+        
+        return redirect()->route('deliveries.index')
+            ->with('error', 'La entrega ya está marcada como entregada.');
     }
 
     // marcar entrega como fallida
     public function markAsFailed(Delivery $delivery): RedirectResponse
     {
-        if ($delivery->status === 'fallido') {
-            return redirect()->route('deliveries.index')
-                ->with('error', 'La entrega ya está marcada como fallida.');
+        if ($delivery->markAsFailed()) {
+            return redirect()->route('deliveries.show', $delivery)
+                ->with('success', 'Entrega marcada como fallida.');
         }
+        
+        return redirect()->route('deliveries.index')
+            ->with('error', 'La entrega ya está marcada como fallida.');
+    }
 
-        $delivery->update(['status' => 'fallido']);
+    // Obtener entregas pendientes para dashboard
+    public function getPending()
+    {
+        $deliveries = Delivery::byStatus(Delivery::STATUS_PENDING)
+            ->withRelations()
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function($delivery) {
+                return $delivery->getSummaryInfo();
+            });
 
-        return redirect()->route('deliveries.show', $delivery)
-            ->with('success', 'Entrega marcada como fallida.');
+        return response()->json($deliveries);
+    }
+
+    // Buscar entregas por cliente o dirección
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        
+        $deliveries = Delivery::with(['trip.vehicle', 'trip.driver.user'])
+            ->where('customer_name', 'like', "%{$query}%")
+            ->orWhere('delivery_address', 'like', "%{$query}%")
+            ->orderBy('created_at', 'desc')
+            ->take(10)
+            ->get()
+            ->map(function($delivery) {
+                return $delivery->getSummaryInfo();
+            });
+
+        return response()->json($deliveries);
+    }
+
+    // Obtener entregas de hoy
+    public function getToday()
+    {
+        $deliveries = Delivery::whereDate('created_at', today())
+            ->withRelations()
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function($delivery) {
+                return $delivery->getSummaryInfo();
+            });
+
+        return response()->json($deliveries);
     }
 }

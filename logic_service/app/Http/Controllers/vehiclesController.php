@@ -22,7 +22,8 @@ class vehiclesController extends Controller
     //mostrar formulario de creacion de vehiculo
     public function create(): View
     {
-        return view('vehicles.create');
+        $statuses = Vehicle::getStatuses();
+        return view('vehicles.create', compact('statuses'));
     }
 
     //agregar un nuevo vehiculo /insertar
@@ -36,10 +37,15 @@ class vehiclesController extends Controller
             'status' => ['required', 'string', Rule::in(['activo', 'inactivo', 'mantenimiento'])],
         ]);
 
-        Vehicle::create($validated);
-
-        return redirect()->route('vehicles.index')
-            ->with('success', 'Vehículo creado exitosamente.');
+        try {
+            Vehicle::create($validated);
+            return redirect()->route('vehicles.index')
+                ->with('success', 'Vehículo creado exitosamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Error al crear el vehículo: ' . $e->getMessage());
+        }
     }
 
     //Mostrar un vehículo
@@ -51,7 +57,8 @@ class vehiclesController extends Controller
     //abrir formulario de editar vehiculo
     public function edit(Vehicle $vehicle): View
     {
-        return view('vehicles.edit', compact('vehicle'));
+        $statuses = Vehicle::getStatuses();
+        return view('vehicles.edit', compact('vehicle', 'statuses'));
     }
 
     //Actualizar /editarvehiculo
@@ -88,25 +95,39 @@ class vehiclesController extends Controller
     //cambiar estdo del vehiculo
     public function toggleStatus(Vehicle $vehicle): RedirectResponse
     {
-        $newStatus = match($vehicle->status) {
-            'activo' => 'inactivo',
-            'inactivo' => 'activo',
-            'mantenimiento' => 'activo',
-            default => 'activo'
-        };
-
-        $vehicle->update(['status' => $newStatus]);
+        $newStatus = $vehicle->toggleStatus();
 
         return redirect()->route('vehicles.index')
             ->with('success', "Estado del vehículo cambiado a: {$newStatus}");
     }
 
-     // obtener vehiculos por lladama de api.
-    public function getByStatus(string $status)
+    // Obtener vehículos disponibles para AJAX/select2
+    public function getAvailable()
     {
-        $vehicles = Vehicle::where('status', $status)
+        $vehicles = Vehicle::available()
             ->orderBy('plate_number')
-            ->get(['id', 'plate_number', 'brand', 'model', 'capacity']);
+            ->get()
+            ->map(function($vehicle) {
+                return $vehicle->getSummaryInfo();
+            });
+
+        return response()->json($vehicles);
+    }
+
+    // Buscar vehículos por placa
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        
+        $vehicles = Vehicle::where('plate_number', 'like', "%{$query}%")
+            ->orWhere('brand', 'like', "%{$query}%")
+            ->orWhere('model', 'like', "%{$query}%")
+            ->orderBy('plate_number')
+            ->take(10)
+            ->get()
+            ->map(function($vehicle) {
+                return $vehicle->getSummaryInfo();
+            });
 
         return response()->json($vehicles);
     }

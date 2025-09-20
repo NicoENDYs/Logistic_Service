@@ -73,7 +73,7 @@ class routesController extends Controller
     public function destroy(Route $route): RedirectResponse
     {
         // Verificar si tiene viajes activos
-        if ($route->trips()->whereIn('status', ['pendiente', 'en_progreso'])->exists()) {
+        if (!$route->canBeDeleted()) {
             return redirect()->route('routes.index')
                 ->with('error', 'No se puede eliminar una ruta con viajes activos.');
         }
@@ -84,41 +84,51 @@ class routesController extends Controller
             ->with('success', 'Ruta eliminada exitosamente.');
     }
 
-    // obtener rutas por api
-    public function getRoutes()
-    {
-        $routes = Route::orderBy('origin')
-            ->get(['id', 'origin', 'destination', 'distance_km', 'estimated_time'])
-            ->map(function ($route) {
-                return [
-                    'id' => $route->id,
-                    'description' => $route->description,
-                    'origin' => $route->origin,
-                    'destination' => $route->destination,
-                    'distance_km' => $route->distance_km,
-                    'estimated_time' => $route->estimated_time,
-                ];
-            });
-
-        return response()->json($routes);
-    }
-
-    // calcular distancia estimada entre dos rutas
-    public function calculateDistance(Request $request)
+    // Calcular distancia entre origen y destino
+    public function calculateDistance(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'origin' => ['required', 'string'],
             'destination' => ['required', 'string'],
         ]);
 
-        // Aquí se puede integrar con una API de mapas como Google Maps
-        // Por ahora retornamos un cálculo básico
-        $estimatedDistance = rand(10, 500); // Simulación
-        $estimatedTime = gmdate('H:i', ($estimatedDistance / 60) * 3600); // Asume 60 km/h
+        $calculation = Route::calculateEstimatedDistance(
+            $validated['origin'], 
+            $validated['destination']
+        );
 
-        return response()->json([
-            'distance_km' => $estimatedDistance,
-            'estimated_time' => $estimatedTime,
-        ]);
+        return redirect()->back()
+            ->with('calculation', $calculation)
+            ->with('success', 'Distancia calculada exitosamente.');
+    }
+
+    // Obtener rutas disponibles para AJAX/select2
+    public function getAvailable()
+    {
+        $routes = Route::available()
+            ->orderBy('origin')
+            ->get()
+            ->map(function($route) {
+                return $route->getSummaryInfo();
+            });
+
+        return response()->json($routes);
+    }
+
+    // Buscar rutas por origen o destino
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        
+        $routes = Route::where('origin', 'like', "%{$query}%")
+            ->orWhere('destination', 'like', "%{$query}%")
+            ->orderBy('origin')
+            ->take(10)
+            ->get()
+            ->map(function($route) {
+                return $route->getSummaryInfo();
+            });
+
+        return response()->json($routes);
     }
 }

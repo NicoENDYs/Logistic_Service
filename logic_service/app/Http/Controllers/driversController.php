@@ -29,7 +29,9 @@ class driversController extends Controller
             ->orderBy('name')
             ->get();
             
-        return view('drivers.create', compact('users'));
+        $statuses = Driver::getStatuses();
+            
+        return view('drivers.create', compact('users', 'statuses'));
     }
 
     //agregar un nuevo conductor / insertar
@@ -65,7 +67,9 @@ class driversController extends Controller
             ->orderBy('name')
             ->get();
             
-        return view('drivers.edit', compact('driver', 'users'));
+        $statuses = Driver::getStatuses();
+            
+        return view('drivers.edit', compact('driver', 'users', 'statuses'));
     }
 
     //Actualizar / editar conductor
@@ -107,28 +111,41 @@ class driversController extends Controller
     //cambiar estado del conductor
     public function toggleStatus(Driver $driver): RedirectResponse
     {
-        $newStatus = $driver->status === 'activo' ? 'suspendido' : 'activo';
-        
-        $driver->update(['status' => $newStatus]);
+        $newStatus = $driver->toggleStatus();
 
         return redirect()->route('drivers.index')
             ->with('success', "Estado del conductor cambiado a: {$newStatus}");
     }
 
-    // obtener conductores activos por api
-    public function getActiveDrivers()
+    // Obtener conductores disponibles para AJAX/select2
+    public function getAvailable()
     {
-        $drivers = Driver::with('user')
-            ->where('status', 'activo')
+        $drivers = Driver::available()
+            ->with('user')
             ->orderBy('created_at')
-            ->get(['id', 'user_id', 'license_number', 'phone'])
-            ->map(function ($driver) {
-                return [
-                    'id' => $driver->id,
-                    'name' => $driver->user->name ?? 'Sin nombre',
-                    'license_number' => $driver->license_number,
-                    'phone' => $driver->phone,
-                ];
+            ->get()
+            ->map(function($driver) {
+                return $driver->getSummaryInfo();
+            });
+
+        return response()->json($drivers);
+    }
+
+    // Buscar conductores por nombre o licencia
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        
+        $drivers = Driver::with('user')
+            ->where('license_number', 'like', "%{$query}%")
+            ->orWhereHas('user', function($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%");
+            })
+            ->orderBy('created_at')
+            ->take(10)
+            ->get()
+            ->map(function($driver) {
+                return $driver->getSummaryInfo();
             });
 
         return response()->json($drivers);

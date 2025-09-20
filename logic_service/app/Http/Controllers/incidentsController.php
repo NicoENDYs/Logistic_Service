@@ -29,7 +29,9 @@ class incidentsController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
-        return view('incidents.create', compact('trips'));
+        $types = Incident::getTypes();
+        
+        return view('incidents.create', compact('trips', 'types'));
     }
 
     //agregar un nuevo incidente / insertar
@@ -78,7 +80,9 @@ class incidentsController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
             
-        return view('incidents.edit', compact('incident', 'trips'));
+        $types = Incident::getTypes();
+            
+        return view('incidents.edit', compact('incident', 'trips', 'types'));
     }
 
     //Actualizar / editar incidente
@@ -110,7 +114,7 @@ class incidentsController extends Controller
     //marcar incidente como resuelto
     public function markAsResolved(Incident $incident): RedirectResponse
     {
-        if ($incident->resolved) {
+        if ($incident->isResolved()) {
             return redirect()->route('incidents.index')
                 ->with('error', 'El incidente ya está marcado como resuelto.');
         }
@@ -124,84 +128,81 @@ class incidentsController extends Controller
     //cambiar estado de resolución del incidente
     public function toggleResolved(Incident $incident): RedirectResponse
     {
-        $newStatus = !$incident->resolved;
-        $incident->update(['resolved' => $newStatus]);
-
+        $newStatus = $incident->toggleResolved();
         $message = $newStatus ? 'resuelto' : 'pendiente';
+        
         return redirect()->route('incidents.index')
             ->with('success', "Incidente marcado como: {$message}");
     }
 
-    // obtener incidentes por estado via api
-    public function getByStatus(string $resolved)
+    // obtener resumen de incidentes
+    public function getSummary(): RedirectResponse
     {
-        $isResolved = $resolved === 'resolved' ? true : false;
+        $summary = Incident::getStatsSummary();
+        
+        return redirect()->back()
+            ->with('summary', $summary)
+            ->with('success', 'Resumen de incidentes cargado exitosamente.');
+    }
+
+    // Obtener incidentes pendientes para dashboard
+    public function getPending()
+    {
+        $incidents = Incident::pending()
+            ->withRelations()
+            ->orderBy('reported_at', 'desc')
+            ->get()
+            ->map(function($incident) {
+                return $incident->getSummaryInfo();
+            });
+
+        return response()->json($incidents);
+    }
+
+    // Buscar incidentes por descripción o tipo
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
         
         $incidents = Incident::with(['trip.vehicle', 'trip.driver.user'])
-            ->where('resolved', $isResolved)
+            ->where('description', 'like', "%{$query}%")
+            ->orWhere('type', 'like', "%{$query}%")
             ->orderBy('reported_at', 'desc')
+            ->take(10)
             ->get()
-            ->map(function ($incident) {
-                return [
-                    'id' => $incident->id,
-                    'description' => substr($incident->description, 0, 100) . '...',
-                    'type' => $incident->type,
-                    'vehicle' => $incident->trip->vehicle->plate_number ?? 'N/A',
-                    'driver' => $incident->trip->driver->user->name ?? 'N/A',
-                    'reported_at' => $incident->reported_at,
-                    'resolved' => $incident->resolved,
-                ];
+            ->map(function($incident) {
+                return $incident->getSummaryInfo();
             });
 
         return response()->json($incidents);
     }
 
-    // obtener incidentes de un viaje especifica
-    public function getByTrip(Trip $trip)
+    // Obtener incidentes recientes
+    public function getRecent()
     {
-        $incidents = $trip->incidents()
+        $incidents = Incident::recent()
+            ->withRelations()
             ->orderBy('reported_at', 'desc')
-            ->get(['id', 'description', 'type', 'reported_at', 'resolved']);
+            ->take(10)
+            ->get()
+            ->map(function($incident) {
+                return $incident->getSummaryInfo();
+            });
 
         return response()->json($incidents);
     }
 
-    // obtener incidentes por tipo
+    // Obtener incidentes por tipo
     public function getByType(string $type)
     {
-        $incidents = Incident::with(['trip.vehicle', 'trip.driver.user'])
-            ->where('type', $type)
+        $incidents = Incident::byType($type)
+            ->withRelations()
             ->orderBy('reported_at', 'desc')
             ->get()
-            ->map(function ($incident) {
-                return [
-                    'id' => $incident->id,
-                    'description' => substr($incident->description, 0, 100) . '...',
-                    'vehicle' => $incident->trip->vehicle->plate_number ?? 'N/A',
-                    'driver' => $incident->trip->driver->user->name ?? 'N/A',
-                    'reported_at' => $incident->reported_at,
-                    'resolved' => $incident->resolved,
-                ];
+            ->map(function($incident) {
+                return $incident->getSummaryInfo();
             });
 
         return response()->json($incidents);
-    }
-
-    // obtener resumen de incidentes
-    public function getSummary()
-    {
-        $summary = [
-            'total' => Incident::count(),
-            'resolved' => Incident::where('resolved', true)->count(),
-            'pending' => Incident::where('resolved', false)->count(),
-            'by_type' => [
-                'accidente' => Incident::where('type', 'accidente')->count(),
-                'retraso' => Incident::where('type', 'retraso')->count(),
-                'mecanico' => Incident::where('type', 'mecanico')->count(),
-                'otro' => Incident::where('type', 'otro')->count(),
-            ]
-        ];
-
-        return response()->json($summary);
     }
 }

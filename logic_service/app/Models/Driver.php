@@ -60,4 +60,75 @@ class Driver extends Model
     {
         return $this->user ? $this->user->name : 'Sin nombre';
     }
+
+    // Verificar si el conductor está disponible para viajes
+    public function isAvailable(): bool
+    {
+        return $this->isActive() && !$this->hasActiveTrips();
+    }
+
+    // Verificar si tiene viajes activos
+    public function hasActiveTrips(): bool
+    {
+        return $this->trips()->whereIn('status', ['pendiente', 'en_progreso'])->exists();
+    }
+
+    // Obtener conductores activos
+    public static function active()
+    {
+        return static::where('status', self::STATUS_ACTIVE);
+    }
+
+    // Obtener conductores disponibles
+    public static function available()
+    {
+        return static::active()->whereDoesntHave('trips', function($query) {
+            $query->whereIn('status', ['pendiente', 'en_progreso']);
+        });
+    }
+
+    // Cambiar estado del conductor
+    public function changeStatus(string $newStatus): bool
+    {
+        if (!in_array($newStatus, [self::STATUS_ACTIVE, self::STATUS_SUSPENDED])) {
+            return false;
+        }
+        
+        return $this->update(['status' => $newStatus]);
+    }
+
+    // Alternar estado entre activo/suspendido
+    public function toggleStatus(): string
+    {
+        $newStatus = $this->status === self::STATUS_ACTIVE ? self::STATUS_SUSPENDED : self::STATUS_ACTIVE;
+        $this->update(['status' => $newStatus]);
+        return $newStatus;
+    }
+
+    // Obtener información resumida del conductor
+    public function getSummaryInfo(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->full_name,
+            'license_number' => $this->license_number,
+            'phone' => $this->phone,
+            'status' => $this->status,
+            'is_available' => $this->isAvailable(),
+        ];
+    }
+
+    // Obtener conductores con usuarios
+    public static function withUsers()
+    {
+        return static::with('user');
+    }
+
+    // Scope para conductores sin viajes activos
+    public function scopeWithoutActiveTrips($query)
+    {
+        return $query->whereDoesntHave('trips', function($q) {
+            $q->whereIn('status', ['pendiente', 'en_progreso']);
+        });
+    }
 }
