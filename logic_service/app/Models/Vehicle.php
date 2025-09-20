@@ -37,7 +37,7 @@ class Vehicle extends Model
             'plate_number' => ['required', 'string', 'max:20', 'unique:vehicles,plate_number'],
             'brand' => ['required', 'string', 'max:100'],
             'model' => ['required', 'string', 'max:100'],
-            'capacity' => ['required', 'integer', 'min:1', 'max:100'],
+            'capacity' => ['required', 'integer', 'min:1', 'max:10000'],
             'status' => ['nullable', 'string', 'in:activo,inactivo,mantenimiento'],
         ]);
 

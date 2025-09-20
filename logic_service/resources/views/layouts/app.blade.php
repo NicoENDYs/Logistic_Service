@@ -1,36 +1,44 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ $title ?? config('app.name') }}</title>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+</head>
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
-        <!-- Scripts -->
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    </head>
-    <body class="font-sans antialiased">
-        <div class="min-h-screen bg-gray-100">
-            @include('layouts.navigation')
-
-            <!-- Page Heading -->
-            @isset($header)
-                <header class="bg-white shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
-                    </div>
-                </header>
-            @endisset
-
-            <!-- Page Content -->
-            <main>
-                {{ $slot }}
-            </main>
+<body class="min-h-screen bg-gray-50">
+    <!-- Navbar -->
+    <nav class="bg-white border-b">
+        <div class="mx-auto max-w-7xl px-4 h-14 flex items-center justify-between">
+            <div class="font-semibold">Logística Agro</div>
+            <div class="flex items-center gap-4">
+                <a href="{{ route('dashboard') }}" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</a>
+                <form method="POST" action="{{ route('logout') }}">@csrf
+                    <button class="text-sm text-gray-600 hover:text-gray-900">Salir</button>
+                </form>
+            </div>
         </div>
-    </body>
+    </nav>
+
+    <div class="mx-auto max-w-7xl px-4 py-6 grid grid-cols-12 gap-6">
+        <!-- Sidebar -->
+        <aside class="col-span-12 md:col-span-3 lg:col-span-2">
+            <div class="bg-white rounded-xl shadow p-3 space-y-1">
+                <x-nav-link href="{{ route('vehicles.index') }}" :active="request()->routeIs('vehicles.*')">Vehículos</x-nav-link>
+                <x-nav-link href="{{ route('drivers.index') }}" :active="request()->routeIs('drivers.*')">Choferes</x-nav-link>
+                <x-nav-link href="{{ route('routes.index') }}" :active="request()->routeIs('routes.*')">Rutas</x-nav-link>
+                <x-nav-link href="{{ route('trips.index') }}" :active="request()->routeIs('trips.*')">Viajes</x-nav-link>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="col-span-12 md:col-span-9 lg:col-span-10">
+            {{ $slot ?? '' }}
+            @yield('content')
+        </main>
+    </div>
+</body>
+
 </html>
