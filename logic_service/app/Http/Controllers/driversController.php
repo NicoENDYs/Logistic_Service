@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreDriverRequest;
+use App\Http\Requests\UpdateDriverRequest;
 use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -35,19 +37,19 @@ class driversController extends Controller
     }
 
     //agregar un nuevo conductor / insertar
-    public function store(Request $request): RedirectResponse
+    public function store(StoreDriverRequest $request)
     {
-        $validated = $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id', 'unique:drivers,user_id'],
-            'license_number' => ['required', 'string', 'max:50'],
-            'phone' => ['required', 'string', 'max:30'],
-            'status' => ['required', 'string', Rule::in(['activo', 'suspendido'])],
-        ]);
-
-        Driver::create($validated);
-
+        Driver::create($request->validated());
         return redirect()->route('drivers.index')
-            ->with('success', 'Conductor creado exitosamente.');
+                         ->with('success', 'Driver created successfully');
+    }
+
+    //Actualizar / editar conductor
+    public function update(UpdateDriverRequest $request, Driver $driver)
+    {
+        $driver->update($request->validated());
+        return redirect()->route('drivers.index')
+                         ->with('success', 'Driver updated successfully');
     }
 
     //Mostrar un conductor
@@ -70,28 +72,7 @@ class driversController extends Controller
         $statuses = Driver::getStatuses();
             
         return view('drivers.edit', compact('driver', 'users', 'statuses'));
-    }
-
-    //Actualizar / editar conductor
-    public function update(Request $request, Driver $driver): RedirectResponse
-    {
-        $validated = $request->validate([
-            'user_id' => [
-                'required', 
-                'integer', 
-                'exists:users,id', 
-                Rule::unique('drivers', 'user_id')->ignore($driver->id)
-            ],
-            'license_number' => ['required', 'string', 'max:50'],
-            'phone' => ['required', 'string', 'max:30'],
-            'status' => ['required', 'string', Rule::in(['activo', 'suspendido'])],
-        ]);
-
-        $driver->update($validated);
-
-        return redirect()->route('drivers.index')
-            ->with('success', 'Conductor actualizado exitosamente.');
-    }
+    }  
 
     //eliminar conductor
     public function destroy(Driver $driver): RedirectResponse

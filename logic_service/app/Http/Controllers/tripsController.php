@@ -6,6 +6,8 @@ use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Models\Driver;
 use App\Models\Route;
+use App\Http\Requests\StoreTripRequest;
+use App\Http\Requests\UpdateTripRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -23,6 +25,22 @@ class tripsController extends Controller
         return view('trips.index', compact('trips'));
     }
 
+     //agregar un nuevo viaje / insertar
+    public function store(StoreTripRequest $request)
+    {
+        Trip::create($request->validated());
+        return redirect()->route('trips.index')
+                         ->with('success', 'trip created successfully');
+    }
+
+    //Actualizar / editar viaje
+    public function update(UpdateTripRequest $request, Trip $trip)
+    {
+        $trip->update($request->validated());
+        return redirect()->route('trips.index')
+                         ->with('success', 'trip updated successfully');
+    }
+
     //mostrar formulario de creación de viaje
     public function create(): View
     {
@@ -33,41 +51,7 @@ class tripsController extends Controller
         
         return view('trips.create', compact('vehicles', 'drivers', 'routes', 'statuses'));
     }
-
-    //agregar un nuevo viaje / insertar
-    public function store(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'vehicle_id' => ['required', 'integer', 'exists:vehicles,id'],
-            'driver_id' => ['required', 'integer', 'exists:drivers,id'],
-            'route_id' => ['required', 'integer', 'exists:routes,id'],
-            'start_time' => ['nullable', 'date'],
-            'end_time' => ['nullable', 'date', 'after:start_time'],
-            'status' => ['required', 'string', Rule::in(['pendiente', 'en_progreso', 'completado', 'cancelado'])],
-        ]);
-
-        // Verificar disponibilidad del vehículo
-        $vehicle = Vehicle::find($validated['vehicle_id']);
-        if (!$vehicle->isActive()) {
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'El vehículo seleccionado no está disponible.');
-        }
-
-        // Verificar disponibilidad del conductor
-        $driver = Driver::find($validated['driver_id']);
-        if (!$driver->isActive()) {
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'El conductor seleccionado no está disponible.');
-        }
-
-        Trip::create($validated);
-
-        return redirect()->route('trips.index')
-            ->with('success', 'Viaje creado exitosamente.');
-    }
-
+   
     //Mostrar un viaje
     public function show(Trip $trip): View
     {
@@ -100,24 +84,6 @@ class tripsController extends Controller
         $statuses = Trip::getStatuses();
         
         return view('trips.edit', compact('trip', 'vehicles', 'drivers', 'routes', 'statuses'));
-    }
-
-    //Actualizar / editar viaje
-    public function update(Request $request, Trip $trip): RedirectResponse
-    {
-        $validated = $request->validate([
-            'vehicle_id' => ['required', 'integer', 'exists:vehicles,id'],
-            'driver_id' => ['required', 'integer', 'exists:drivers,id'],
-            'route_id' => ['required', 'integer', 'exists:routes,id'],
-            'start_time' => ['nullable', 'date'],
-            'end_time' => ['nullable', 'date', 'after:start_time'],
-            'status' => ['required', 'string', Rule::in(['pendiente', 'en_progreso', 'completado', 'cancelado'])],
-        ]);
-
-        $trip->update($validated);
-
-        return redirect()->route('trips.index')
-            ->with('success', 'Viaje actualizado exitosamente.');
     }
 
     //eliminar viaje

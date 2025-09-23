@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreDeliveryRequest;
+use App\Http\Requests\UpdateDeliveryRequest;
 use App\Models\Delivery;
 use App\Models\Trip;
 use Illuminate\Http\Request;
@@ -21,6 +23,22 @@ class deliveriesController extends Controller
         return view('deliveries.index', compact('deliveries'));
     }
 
+     //agregar una nueva entrega / insertar
+    public function store(StoreDeliveryRequest $request)
+    {
+        Delivery::create($request->validated());
+        return redirect()->route('deliveries.index')
+                         ->with('success', 'Delivery created successfully');
+    }
+
+    //Actualizar / editar Entrega
+    public function update(UpdateDeliveryRequest $request, Delivery $driver)
+    {
+        $driver->update($request->validated());
+        return redirect()->route('deliveries.index')
+                         ->with('success', 'Delivery updated successfully');
+    }
+
     //mostrar formulario de creación de entrega
     public function create(): View
     {
@@ -32,23 +50,6 @@ class deliveriesController extends Controller
         $statuses = Delivery::getStatuses();
         
         return view('deliveries.create', compact('trips', 'statuses'));
-    }
-
-    //agregar una nueva entrega / insertar
-    public function store(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'trip_id' => ['required', 'integer', 'exists:trips,id'],
-            'customer_name' => ['required', 'string', 'max:150'],
-            'delivery_address' => ['required', 'string', 'max:255'],
-            'delivery_time' => ['nullable', 'date'],
-            'status' => ['required', 'string', Rule::in(['pendiente', 'entregado', 'fallido'])],
-        ]);
-
-        Delivery::create($validated);
-
-        return redirect()->route('deliveries.index')
-            ->with('success', 'Entrega creada exitosamente.');
     }
 
     //Mostrar una entrega
@@ -75,24 +76,6 @@ class deliveriesController extends Controller
         $statuses = Delivery::getStatuses();
             
         return view('deliveries.edit', compact('delivery', 'trips', 'statuses'));
-    }
-
-    //Actualizar / editar entrega
-    public function update(Request $request, Delivery $delivery): RedirectResponse
-    {
-        $validated = $request->validate([
-            'trip_id' => ['required', 'integer', 'exists:trips,id'],
-            'customer_name' => ['required', 'string', 'max:150'],
-            'delivery_address' => ['required', 'string', 'max:255'],
-            'delivery_time' => ['nullable', 'date'],
-            'status' => ['required', 'string', Rule::in(['pendiente', 'entregado', 'fallido'])],
-        ]);
-
-        $delivery->changeStatus($validated['status']);
-        $delivery->update(collect($validated)->except('status')->toArray());
-        
-        return redirect()->route('deliveries.index')
-            ->with('success', 'Entrega actualizada exitosamente.');
     }
 
     //eliminar entrega

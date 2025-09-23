@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreIncidentRequest;
+use App\Http\Requests\UpdateIncidentRequest;
 use App\Models\Incident;
 use App\Models\Trip;
 use Illuminate\Http\Request;
@@ -21,6 +23,22 @@ class incidentsController extends Controller
         return view('incidents.index', compact('incidents'));
     }
 
+      //agregar un nuevo incidente / insertar
+    public function store(StoreIncidentRequest $request)
+    {
+        Incident::create($request->validated());
+        return redirect()->route('drivers.index')
+                         ->with('success', 'Driver created successfully');
+    }
+
+    //Actualizar / editar incidente
+    public function update(UpdateIncidentRequest $request, Incident $driver)
+    {
+        $driver->update($request->validated());
+        return redirect()->route('drivers.index')
+                         ->with('success', 'Driver updated successfully');
+    }
+
     //mostrar formulario de creación de incidente
     public function create(): View
     {
@@ -32,30 +50,6 @@ class incidentsController extends Controller
         $types = Incident::getTypes();
         
         return view('incidents.create', compact('trips', 'types'));
-    }
-
-    //agregar un nuevo incidente / insertar
-    public function store(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'trip_id' => ['required', 'integer', 'exists:trips,id'],
-            'description' => ['required', 'string', 'max:1000'],
-            'type' => ['required', 'string', Rule::in(['accidente', 'retraso', 'mecanico', 'otro'])],
-            'reported_at' => ['nullable', 'date'],
-            'resolved' => ['boolean'],
-        ]);
-
-        // Si no se especifica fecha, usar la actual
-        if (!isset($validated['reported_at'])) {
-            $validated['reported_at'] = now();
-        }
-
-        $validated['resolved'] = $validated['resolved'] ?? false;
-
-        Incident::create($validated);
-
-        return redirect()->route('incidents.index')
-            ->with('success', 'Incidente registrado exitosamente.');
     }
 
     //Mostrar un incidente
@@ -83,23 +77,6 @@ class incidentsController extends Controller
         $types = Incident::getTypes();
             
         return view('incidents.edit', compact('incident', 'trips', 'types'));
-    }
-
-    //Actualizar / editar incidente
-    public function update(Request $request, Incident $incident): RedirectResponse
-    {
-        $validated = $request->validate([
-            'trip_id' => ['required', 'integer', 'exists:trips,id'],
-            'description' => ['required', 'string', 'max:1000'],
-            'type' => ['required', 'string', Rule::in(['accidente', 'retraso', 'mecanico', 'otro'])],
-            'reported_at' => ['nullable', 'date'],
-            'resolved' => ['boolean'],
-        ]);
-
-        $incident->update($validated);
-
-        return redirect()->route('incidents.index')
-            ->with('success', 'Incidente actualizado exitosamente.');
     }
 
     //eliminar incidente

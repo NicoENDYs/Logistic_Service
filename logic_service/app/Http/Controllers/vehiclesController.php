@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreVehicleRequest;
+use App\Http\Requests\UpdateVehicleRequest;
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -26,26 +28,20 @@ class vehiclesController extends Controller
         return view('vehicles.create', compact('statuses'));
     }
 
-    //agregar un nuevo vehiculo /insertar
-    public function store(Request $request): RedirectResponse
+    //agregar un nuevo vehiculo / insertar
+    public function store(StoreVehicleRequest $request)
     {
-        $validated = $request->validate([
-            'plate_number' => ['required', 'string', 'max:20', 'unique:vehicles,plate_number'],
-            'brand' => ['required', 'string', 'max:100'],
-            'model' => ['required', 'string', 'max:100'],
-            'capacity' => ['required', 'integer', 'min:1', 'max:10000'],
-            'status' => ['required', 'string', Rule::in(['activo', 'inactivo', 'mantenimiento'])],
-        ]);
+        Vehicle::create($request->validated());
+        return redirect()->route('vehicles.index')
+                         ->with('success', 'Vehicle created successfully');
+    }
 
-        try {
-            Vehicle::create($validated);
-            return redirect()->route('vehicles.index')
-                ->with('success', 'Vehículo creado exitosamente.');
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Error al crear el vehículo: ' . $e->getMessage());
-        }
+    //Actualizar / editar vehiculo
+    public function update(UpdateVehicleRequest $request, Vehicle $vehicle)
+    {
+        $vehicle->update($request->validated());
+        return redirect()->route('vehicles.index')
+                         ->with('success', 'Vehicle updated successfully');
     }
 
     //Mostrar un vehículo
@@ -59,28 +55,6 @@ class vehiclesController extends Controller
     {
         $statuses = Vehicle::getStatuses();
         return view('vehicles.edit', compact('vehicle', 'statuses'));
-    }
-
-    //Actualizar /editarvehiculo
-    public function update(Request $request, Vehicle $vehicle): RedirectResponse
-    {
-        $validated = $request->validate([
-            'plate_number' => [
-                'required', 
-                'string', 
-                'max:20', 
-                Rule::unique('vehicles', 'plate_number')->ignore($vehicle->id)
-            ],
-            'brand' => ['required', 'string', 'max:100'],
-            'model' => ['required', 'string', 'max:100'],
-            'capacity' => ['required', 'integer', 'min:1', 'max:10000'],
-            'status' => ['required', 'string', Rule::in(['activo', 'inactivo', 'mantenimiento'])],
-        ]);
-
-        $vehicle->update($validated);
-
-        return redirect()->route('vehicles.index')
-            ->with('success', 'Vehículo actualizado exitosamente.');
     }
 
     //eliminar vehiculo

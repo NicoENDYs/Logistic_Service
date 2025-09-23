@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreRouteRequest;
+use App\Http\Requests\UpdateRouteRequest;
 use App\Models\Route;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -23,20 +25,20 @@ class routesController extends Controller
         return view('routes.create');
     }
 
-    //agregar una nueva ruta / insertar
-    public function store(Request $request): RedirectResponse
+//agregar una nueva ruta / insertar
+    public function store(StoreRouteRequest $request)
     {
-        $validated = $request->validate([
-            'origin' => ['required', 'string', 'max:255'],
-            'destination' => ['required', 'string', 'max:255'],
-            'distance_km' => ['required', 'numeric', 'min:0', 'max:9999.99'],
-            'estimated_time' => ['nullable', 'date_format:H:i'],
-        ]);
-
-        Route::create($validated);
-
+        Route::create($request->validated());
         return redirect()->route('routes.index')
-            ->with('success', 'Ruta creada exitosamente.');
+                         ->with('success', 'route created successfully');
+    }
+
+    //Actualizar / editar ruta
+    public function update(UpdateRouteRequest $request, Route $route)
+    {
+        $route->update($request->validated());
+        return redirect()->route('routes.index')
+                         ->with('success', 'route updated successfully');
     }
 
     //Mostrar una ruta
@@ -51,22 +53,6 @@ class routesController extends Controller
     public function edit(Route $route): View
     {
         return view('routes.edit', compact('route'));
-    }
-
-    //Actualizar / editar ruta
-    public function update(Request $request, Route $route): RedirectResponse
-    {
-        $validated = $request->validate([
-            'origin' => ['required', 'string', 'max:255'],
-            'destination' => ['required', 'string', 'max:255'],
-            'distance_km' => ['required', 'numeric', 'min:0', 'max:9999.99'],
-            'estimated_time' => ['nullable', 'date_format:H:i'],
-        ]);
-
-        $route->update($validated);
-
-        return redirect()->route('routes.index')
-            ->with('success', 'Ruta actualizada exitosamente.');
     }
 
     //eliminar ruta
