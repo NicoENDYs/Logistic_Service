@@ -11,6 +11,28 @@ class Trip extends Model
 {
     use HasFactory;
 
+     public static function Asign(array $data){
+        $conflict = self::Where(function($query) use ($data) {
+            $query->where('driver_id', $data['driver_id'])
+            ->orwhere('vechicle_id', $data['vehicle_id']);
+        })
+        ->whereIn('status',['pendiente','en_progreso'])
+        ->where(function($query) use ($data){
+            $query->whereBetween('started_at',$data['started_at'],$data['ended_at'])
+            -> orWhereBetween('ended_at',$data['started_at'], $data['ended_at']);
+
+        })
+        ->exists();
+        
+        if($conflict){
+            throw new \Exception('Vehiculo o conductor no disponibles en el horario');
+        }
+        // si no hay conflicto de horario, cambia estado
+        $data['status']='pendiente';
+
+        return self::create($data);
+        }
+        
     protected $fillable = [
         'vehicle_id',
         'driver_id',
@@ -204,4 +226,8 @@ class Trip extends Model
     {
         return in_array($this->status, [self::STATUS_PENDING, self::STATUS_CANCELLED]);
     }
-}
+
+   
+
+
+    }

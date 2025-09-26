@@ -27,11 +27,18 @@ class tripsController extends Controller
 
      //agregar un nuevo viaje / insertar
     public function store(StoreTripRequest $request)
-    {
-        Trip::create($request->validated());
+{
+    try {
+        Trip::Asign($request->validated());
+            return redirect()->route('trips.index')
+                             ->with('success', 'Viaje creado exitosamente');
         return redirect()->route('trips.index')
-                         ->with('success', 'trip created successfully');
+                         ->with('success', 'Trip created successfully');
+    } catch (\Exception $e) {
+        return redirect()->route('trips.index')
+                         ->with('error', $e->getMessage());
     }
+}
 
     //Actualizar / editar viaje
     public function update(UpdateTripRequest $request, Trip $trip)
