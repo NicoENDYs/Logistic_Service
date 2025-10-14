@@ -7,6 +7,7 @@ use App\Http\Controllers\routesController;
 use App\Http\Controllers\tripsController;
 use App\Http\Controllers\deliveriesController;
 use App\Http\Controllers\incidentsController;
+use App\Http\Controllers\TripLocationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -39,6 +40,12 @@ Route::middleware('auth')->group(function () {
 
     // Incidents routes
     Route::resource('incidents', incidentsController::class);
+
+    //trip locations
+    Route::middleware('throttle:30,1')->group(function(){
+        Route::get('/trips/{trip}/locations',[TripLocationController::class, 'show']);
+    })
+        ->name('trip.locations.store');
 });
 
 require __DIR__ . '/auth.php';

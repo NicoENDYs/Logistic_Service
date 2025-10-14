@@ -11,15 +11,15 @@ class Trip extends Model
 {
     use HasFactory;
 
-     public static function Asign(array $data){
-        $conflict = self::Where(function($query) use ($data) {
+     public static function assign(array $data){  // Fixed: Changed Asign to assign (proper case)
+        $conflict = self::where(function($query) use ($data) {
             $query->where('driver_id', $data['driver_id'])
-            ->orwhere('vechicle_id', $data['vehicle_id']);
+            ->orWhere('vehicle_id', $data['vehicle_id']);  // Fixed: Changed orwhere to orWhere (proper case)
         })
         ->whereIn('status',['pendiente','en_progreso'])
         ->where(function($query) use ($data){
-            $query->whereBetween('started_at',$data['started_at'],$data['ended_at'])
-            -> orWhereBetween('ended_at',$data['started_at'], $data['ended_at']);
+            $query->whereBetween('start_time',[$data['start_time'],$data['end_time']])  // Fixed: Corrected parameter order
+            ->orWhereBetween('end_time',[$data['start_time'], $data['end_time']]);  // Fixed: Changed orWhereBetween to orWhereBetween and corrected parameter order
 
         })
         ->exists();
@@ -51,6 +51,12 @@ class Trip extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+    
+    //Relación con ubicaciones
+    public function locations()
+    {
+    return $this->hasMany(TripLocation::class, 'trip_id');
+    }
 
     // Estados del viaje
     public const STATUS_PENDING = 'pendiente';

@@ -65,7 +65,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => 'America/Bogota',
 
     /*
     |--------------------------------------------------------------------------
@@ -104,6 +104,8 @@ return [
             explode(',', (string) env('APP_PREVIOUS_KEYS', ''))
         ),
     ],
+    
+    'simulation_mode' => env('SIMULATION_MODE', false),
 
     /*
     |--------------------------------------------------------------------------
