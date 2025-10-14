@@ -1,6 +1,6 @@
 # PASOS DESPUES DE BAJAR DEL GIT 
 
-```bash
+````bash
 cd logistic_service
 ```
 
