@@ -8,6 +8,7 @@ use App\Http\Controllers\tripsController;
 use App\Http\Controllers\deliveriesController;
 use App\Http\Controllers\incidentsController;
 use App\Http\Controllers\TripLocationController;
+use App\Http\Controllers\reportsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -40,6 +41,11 @@ Route::middleware('auth')->group(function () {
 
     // Incidents routes
     Route::resource('incidents', incidentsController::class);
+
+    //reports 
+    Route::get('/reports/excel', [reportsController::class, 'exportExcel'])->name('report.excel');
+    Route::get('/reports/pdf',[reportsController::class, 'exportPdf'])->name('report.pdf');
+    Route::get('/reports/kpis', [reportsController::class, 'kpis'])->name('report.kpis');
 
     //trip locations
     Route::middleware('throttle:30,1')->group(function(){

@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\DeliveriesExport;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Delivery extends Model
@@ -140,4 +143,6 @@ class Delivery extends Model
     {
         return $this->status !== self::STATUS_DELIVERED;
     }
+
+   
 }
